@@ -9,8 +9,8 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 object ApiClient {
-    private const val REMOTE_URL = "https://creature-means-algorithm-weeks.trycloudflare.com/"
-    const val LOCAL_URL = "http://192.168.0.119:8000/"
+    private const val REMOTE_URL = "https://iway1231-server1.tail04685e.ts.net/"
+    const val LOCAL_URL = "http://192.168.0.112:8000/"
 
     private var configuredApi: PowerApi? = null
 
@@ -34,10 +34,10 @@ object ApiClient {
             return try {
                 chain.proceed(request)
             } catch (localError: IOException) {
-                if (request.url().host() != "192.168.0.119") throw localError
+                if (request.url().host() != "192.168.0.112") throw localError
                 val fallbackUrl = request.url().newBuilder()
                     .scheme("https")
-                    .host("creature-means-algorithm-weeks.trycloudflare.com")
+                    .host("iway1231-server1.tail04685e.ts.net")
                     .port(443)
                     .build()
                 chain.proceed(request.newBuilder().url(fallbackUrl).build())
@@ -48,3 +48,4 @@ object ApiClient {
     val api: PowerApi
         get() = configuredApi ?: error("ApiClient has not been initialized")
 }
+
