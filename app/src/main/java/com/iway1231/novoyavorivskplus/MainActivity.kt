@@ -687,7 +687,7 @@ private fun MenuScreen(
         ) {
             MenuActionCard("₴", "Підтримати проєкт", MaterialTheme.colorScheme.primary, onSupport)
             MenuActionCard("ⓘ", "Про застосунок", MaterialTheme.colorScheme.onSurfaceVariant, onAbout)
-            MenuActionCard("✉", "Звязатися зі мною", MaterialTheme.colorScheme.onSurfaceVariant, onContact)
+            MenuActionCard("✉", "Зв'язатися зі мною", MaterialTheme.colorScheme.onSurfaceVariant, onContact)
             MenuActionCard(if (darkTheme) "☀" else "☾", if (darkTheme) "Світла тема" else "Темна тема", MaterialTheme.colorScheme.onSurfaceVariant, onToggleTheme)
             MenuActionCard("♧", "Тестове сповіщення", MaterialTheme.colorScheme.onSurfaceVariant, onTestNotification)
             MenuActionCard("↻", "Оновити дані", MaterialTheme.colorScheme.onSurfaceVariant, onRefresh)
