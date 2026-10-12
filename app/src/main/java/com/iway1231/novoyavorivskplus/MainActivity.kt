@@ -777,7 +777,7 @@ private fun MenuIcon(type: MenuIconType, color: Color, darkTheme: Boolean) {
     val surfaceColor = MaterialTheme.colorScheme.surface
     if (type == MenuIconType.SUPPORT) {
         Box(
-            modifier = Modifier.size(28.dp).graphicsLayer {
+            modifier = Modifier.size(24.dp).graphicsLayer {
                 scaleX = pulse
                 scaleY = pulse
             }.background(color, CircleShape),
@@ -786,8 +786,8 @@ private fun MenuIcon(type: MenuIconType, color: Color, darkTheme: Boolean) {
             Text(
                 "₴",
                 color = MaterialTheme.colorScheme.surface,
-                fontSize = 19.sp,
-                lineHeight = 22.sp,
+                fontSize = 16.sp,
+                lineHeight = 20.sp,
                 textAlign = TextAlign.Center,
                 fontWeight = FontWeight.Bold
             )
