@@ -87,7 +87,11 @@ class BackgroundRefreshReceiver : BroadcastReceiver() {
                 // its schedule. Notify only after the API supplies a date and at
                 // least one interval, and only when that published data changes.
                 if (hasPublishedSchedule(electricity) && newSchedule != oldSchedule) {
-                    notifySchedule(context, if (isLoe) "loe" else "naftogaz")
+                    notifySchedule(
+                        context,
+                        if (isLoe) "loe" else "naftogaz",
+                        scheduleWasChanged = oldSchedule.isNotBlank()
+                    )
                 }
             }
         }
@@ -105,7 +109,7 @@ class BackgroundRefreshReceiver : BroadcastReceiver() {
             return date.isNotBlank() && intervals != null && intervals.size() > 0
         }
 
-        private fun notifySchedule(context: Context, operator: String) {
+        private fun notifySchedule(context: Context, operator: String, scheduleWasChanged: Boolean) {
             val channelId = "schedule_$operator"
             val title = if (operator == "loe") "Львівобленерго" else "Нафтогаз Тепло"
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -116,8 +120,8 @@ class BackgroundRefreshReceiver : BroadcastReceiver() {
             else Notification.Builder(context)
             manager.notify((operator.hashCode() and 0x7fffffff), builder
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
-                .setContentTitle("З’явився новий графік")
-                .setContentText("Оновлено графік відключень: $title")
+                .setContentTitle(if (scheduleWasChanged) "Увага: графік змінився" else "З’явився новий графік")
+                .setContentText(if (scheduleWasChanged) "Перевірте оновлений графік: $title" else "Опубліковано графік відключень: $title")
                 .setAutoCancel(true).build())
         }
     }
