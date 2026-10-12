@@ -83,7 +83,10 @@ class BackgroundRefreshReceiver : BroadcastReceiver() {
                 }?.asJsonObject
                 val address = savedEntries.firstOrNull { it.first == group }?.second.orEmpty()
                 if (electricity != null) OutageNotificationScheduler.schedule(context, electricity, address)
-                if (newSchedule.isNotBlank() && newSchedule != oldSchedule) {
+                // An electricity section can exist before the operator publishes
+                // its schedule. Notify only after the API supplies a date and at
+                // least one interval, and only when that published data changes.
+                if (hasPublishedSchedule(electricity) && newSchedule != oldSchedule) {
                     notifySchedule(context, if (isLoe) "loe" else "naftogaz")
                 }
             }
@@ -94,6 +97,12 @@ class BackgroundRefreshReceiver : BroadcastReceiver() {
                 it.isJsonObject && it.asJsonObject.get("id")?.asString == "electricity"
             }?.asJsonObject ?: return ""
             return section.toString()
+        }
+
+        private fun hasPublishedSchedule(section: JsonObject?): Boolean {
+            val date = section?.get("date")?.takeUnless { it.isJsonNull }?.asString.orEmpty()
+            val intervals = section?.get("intervals")?.takeIf { it.isJsonArray }?.asJsonArray
+            return date.isNotBlank() && intervals != null && intervals.size() > 0
         }
 
         private fun notifySchedule(context: Context, operator: String) {
