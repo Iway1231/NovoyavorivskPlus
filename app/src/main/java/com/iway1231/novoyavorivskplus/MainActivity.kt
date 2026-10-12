@@ -6,6 +6,8 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -85,6 +87,7 @@ class MainActivity : ComponentActivity() {
         ) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
         }
+        requestBatteryOptimizationExemption()
         setContent {
             var darkTheme by remember { mutableStateOf(preferences.getBoolean("dark_theme", false)) }
             НовояворівськTheme(darkTheme = darkTheme) {
@@ -95,6 +98,21 @@ class MainActivity : ComponentActivity() {
                     })
                 }
             }
+        }
+    }
+
+    private fun requestBatteryOptimizationExemption() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        val preferences = getSharedPreferences("settings", MODE_PRIVATE)
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+        if (powerManager.isIgnoringBatteryOptimizations(packageName) ||
+            preferences.getBoolean("battery_optimization_prompted", false)
+        ) return
+        preferences.edit().putBoolean("battery_optimization_prompted", true).apply()
+        runCatching {
+            startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:$packageName")
+            })
         }
     }
 }
