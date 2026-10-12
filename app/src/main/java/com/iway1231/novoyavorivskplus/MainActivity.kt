@@ -79,6 +79,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val preferences = getSharedPreferences("settings", MODE_PRIVATE)
         ApiClient.initialize(this)
+        BackgroundRefreshReceiver.schedule(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
@@ -842,8 +843,31 @@ private fun AddressSelectionDialog(
     val choices = remember(groups) {
         groups.flatMap { group ->
             val groupId = group.get("id")?.takeUnless { it.isJsonNull }?.asString ?: return@flatMap emptyList()
-            val addresses = group.getAsJsonArray("addresses") ?: return@flatMap emptyList()
-            addresses.mapNotNull { element ->
+            val addresses = group.getAsJsonArray("addresses")
+            if (addresses == null || addresses.size() == 0) {
+                // Some Naftogaz groups are published only by settlement and do
+                // not have street/building addresses. Keep those settlements in
+                // the picker so their group and schedule can still be shown.
+                val places = sequenceOf("settlements", "cities", "locations", "places")
+                    .flatMap { key ->
+                        val value = group.get(key)?.takeIf { it.isJsonArray }?.asJsonArray
+                        (value?.asSequence() ?: emptySequence()).mapNotNull { item ->
+                            when {
+                                item.isJsonPrimitive -> item.asString
+                                item.isJsonObject -> item.asJsonObject.get("name")?.takeUnless { it.isJsonNull }?.asString
+                                    ?: item.asJsonObject.get("city")?.takeUnless { it.isJsonNull }?.asString
+                                    ?: item.asJsonObject.get("settlement")?.takeUnless { it.isJsonNull }?.asString
+                                else -> null
+                            }
+                        }
+                    }.toList().ifEmpty {
+                        listOfNotNull(
+                            group.get("settlement")?.takeUnless { it.isJsonNull }?.asString,
+                            group.get("city")?.takeUnless { it.isJsonNull }?.asString
+                        )
+                    }.map { place -> AddressChoice(groupId = groupId, label = place.trim(), buildings = emptyList()) }
+                places
+            } else addresses.mapNotNull { element ->
                 if (!element.isJsonObject) return@mapNotNull null
                 val address = element.asJsonObject
                 val rawName = address.get("name")?.takeUnless { it.isJsonNull }?.asString.orEmpty()
@@ -889,7 +913,7 @@ private fun AddressSelectionDialog(
         title = {
             Text(when (step) {
                 0 -> "Оберіть населений пункт"
-                1 -> "Оберіть адресу"
+                1 -> "Оберіть адресу або населений пункт"
                 else -> "Оберіть номер будинку"
             })
         },
