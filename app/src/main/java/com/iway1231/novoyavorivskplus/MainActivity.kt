@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -33,6 +34,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -58,6 +61,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -685,12 +690,12 @@ private fun MenuScreen(
                 .padding(horizontal = 20.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            MenuActionCard("₴", "Підтримати проєкт", MaterialTheme.colorScheme.primary, onSupport)
-            MenuActionCard("ⓘ", "Про застосунок", MaterialTheme.colorScheme.onSurfaceVariant, onAbout)
-            MenuActionCard("✉", "Зв'язатися зі мною", MaterialTheme.colorScheme.onSurfaceVariant, onContact)
-            MenuActionCard(if (darkTheme) "☀" else "☾", if (darkTheme) "Світла тема" else "Темна тема", MaterialTheme.colorScheme.onSurfaceVariant, onToggleTheme)
-            MenuActionCard("♧", "Тестове сповіщення", MaterialTheme.colorScheme.onSurfaceVariant, onTestNotification)
-            MenuActionCard("↻", "Оновити дані", MaterialTheme.colorScheme.onSurfaceVariant, onRefresh)
+            MenuActionCard(MenuIconType.SUPPORT, "Підтримати проєкт", MaterialTheme.colorScheme.primary, onSupport)
+            MenuActionCard(MenuIconType.ABOUT, "Про застосунок", MaterialTheme.colorScheme.onSurfaceVariant, onAbout)
+            MenuActionCard(MenuIconType.CONTACT, "Зв'язатися зі мною", MaterialTheme.colorScheme.onSurfaceVariant, onContact)
+            MenuActionCard(MenuIconType.THEME, if (darkTheme) "Світла тема" else "Темна тема", MaterialTheme.colorScheme.primary, onToggleTheme, darkTheme)
+            MenuActionCard(MenuIconType.TEST, "Тестове сповіщення", MaterialTheme.colorScheme.onSurfaceVariant, onTestNotification)
+            MenuActionCard(MenuIconType.REFRESH, "Оновити дані", MaterialTheme.colorScheme.onSurfaceVariant, onRefresh)
             Spacer(Modifier.height(4.dp))
             Text("Розробник", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
@@ -719,18 +724,85 @@ private fun BackArrowButton(onClick: () -> Unit, modifier: Modifier = Modifier) 
         }
     }
 }
+private enum class MenuIconType { SUPPORT, ABOUT, CONTACT, THEME, TEST, REFRESH }
+
 @Composable
-private fun MenuActionCard(icon: String, title: String, iconColor: Color, onClick: () -> Unit) {
+private fun MenuActionCard(
+    icon: MenuIconType,
+    title: String,
+    iconColor: Color,
+    onClick: () -> Unit,
+    darkTheme: Boolean = false
+) {
     Row(
-        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface, RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick).padding(horizontal = 18.dp, vertical = 14.dp),
+        Modifier.fillMaxWidth().heightIn(min = 64.dp)
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick).padding(horizontal = 18.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-            Text(icon, style = MaterialTheme.typography.headlineSmall, color = iconColor)
+        Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+            MenuIcon(icon, iconColor, darkTheme)
         }
         Spacer(Modifier.width(16.dp))
-        Text(title, style = MaterialTheme.typography.titleMedium, color = if (icon == "₴") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+        Text(title, style = MaterialTheme.typography.titleMedium, color = if (icon == MenuIconType.SUPPORT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+@Composable
+private fun MenuIcon(type: MenuIconType, color: Color, darkTheme: Boolean) {
+    val rotation by animateFloatAsState(
+        targetValue = if (type == MenuIconType.THEME && darkTheme) 180f else 0f,
+        animationSpec = tween(420), label = "theme-icon-rotation"
+    )
+    val surfaceColor = MaterialTheme.colorScheme.surface
+    Canvas(Modifier.size(28.dp)) {
+        val stroke = 2.2.dp.toPx()
+        val center = Offset(size.width / 2f, size.height / 2f)
+        when (type) {
+            MenuIconType.SUPPORT -> {
+                drawLine(color, Offset(size.width * .27f, size.height * .42f), Offset(size.width * .73f, size.height * .42f), stroke, StrokeCap.Round)
+                drawLine(color, Offset(size.width * .27f, size.height * .58f), Offset(size.width * .73f, size.height * .58f), stroke, StrokeCap.Round)
+                drawLine(color, Offset(size.width * .42f, size.height * .25f), Offset(size.width * .58f, size.height * .75f), stroke, StrokeCap.Round)
+            }
+            MenuIconType.ABOUT -> {
+                drawCircle(color, radius = size.minDimension * .38f, center = center, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+                drawCircle(color, radius = stroke * .7f, center = Offset(center.x, size.height * .34f))
+                drawLine(color, Offset(center.x, size.height * .47f), Offset(center.x, size.height * .70f), stroke, StrokeCap.Round)
+            }
+            MenuIconType.CONTACT -> {
+                val left = size.width * .12f; val top = size.height * .27f
+                drawRoundRect(color, Offset(left, top), androidx.compose.ui.geometry.Size(size.width * .76f, size.height * .48f), androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+                drawLine(color, Offset(left, top), Offset(center.x, size.height * .55f), stroke, StrokeCap.Round)
+                drawLine(color, Offset(size.width - left, top), Offset(center.x, size.height * .55f), stroke, StrokeCap.Round)
+            }
+            MenuIconType.THEME -> {
+                withTransform({ rotate(rotation, center) }) {
+                    if (darkTheme) {
+                        drawCircle(color, radius = size.minDimension * .34f, center = center)
+                        drawCircle(surfaceColor, radius = size.minDimension * .30f, center = Offset(size.width * .62f, size.height * .37f))
+                    } else {
+                        drawCircle(color, radius = size.minDimension * .25f, center = center)
+                        for (i in 0 until 8) {
+                            val angle = i * Math.PI / 4.0
+                            val inner = Offset(center.x + kotlin.math.cos(angle).toFloat() * size.minDimension * .36f, center.y + kotlin.math.sin(angle).toFloat() * size.minDimension * .36f)
+                            val outer = Offset(center.x + kotlin.math.cos(angle).toFloat() * size.minDimension * .47f, center.y + kotlin.math.sin(angle).toFloat() * size.minDimension * .47f)
+                            drawLine(color, inner, outer, stroke, StrokeCap.Round)
+                        }
+                    }
+                }
+            }
+            MenuIconType.TEST -> {
+                drawArc(color, startAngle = 144f, sweepAngle = 252f, useCenter = false, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+                drawLine(color, Offset(size.width * .24f, size.height * .36f), Offset(size.width * .32f, size.height * .25f), stroke, StrokeCap.Round)
+                drawLine(color, Offset(size.width * .76f, size.height * .36f), Offset(size.width * .68f, size.height * .25f), stroke, StrokeCap.Round)
+                drawLine(color, Offset(size.width * .38f, size.height * .78f), Offset(size.width * .62f, size.height * .78f), stroke, StrokeCap.Round)
+            }
+            MenuIconType.REFRESH -> {
+                drawArc(color, startAngle = 48f, sweepAngle = 285f, useCenter = false, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+                drawLine(color, Offset(size.width * .74f, size.height * .23f), Offset(size.width * .74f, size.height * .42f), stroke, StrokeCap.Round)
+                drawLine(color, Offset(size.width * .74f, size.height * .23f), Offset(size.width * .57f, size.height * .23f), stroke, StrokeCap.Round)
+            }
+        }
     }
 }
 @Composable
