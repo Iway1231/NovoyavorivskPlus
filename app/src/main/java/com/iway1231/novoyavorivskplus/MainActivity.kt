@@ -35,6 +35,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -63,6 +67,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -750,20 +755,47 @@ private fun MenuActionCard(
 
 @Composable
 private fun MenuIcon(type: MenuIconType, color: Color, darkTheme: Boolean) {
+    val infinite = rememberInfiniteTransition(label = "menu-icon-animation")
+    val pulse by infinite.animateFloat(
+        initialValue = 1f, targetValue = 1.07f,
+        animationSpec = infiniteRepeatable(tween(1500), RepeatMode.Reverse), label = "menu-icon-pulse"
+    )
+    val floatOffset by infinite.animateFloat(
+        initialValue = 0f, targetValue = -2f,
+        animationSpec = infiniteRepeatable(tween(1200), RepeatMode.Reverse), label = "menu-icon-float"
+    )
+    val spin by infinite.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(2600)), label = "menu-icon-spin"
+    )
     val rotation by animateFloatAsState(
         targetValue = if (type == MenuIconType.THEME && darkTheme) 180f else 0f,
         animationSpec = tween(420), label = "theme-icon-rotation"
     )
     val surfaceColor = MaterialTheme.colorScheme.surface
-    Canvas(Modifier.size(28.dp)) {
+    if (type == MenuIconType.SUPPORT) {
+        Text(
+            "₴",
+            modifier = Modifier.size(28.dp).graphicsLayer {
+                scaleX = pulse
+                scaleY = pulse
+            },
+            color = color,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
+        return
+    }
+    Canvas(Modifier.size(28.dp).graphicsLayer {
+        translationY = if (type == MenuIconType.CONTACT) floatOffset else 0f
+        rotationZ = if (type == MenuIconType.REFRESH) spin else 0f
+        scaleX = if (type == MenuIconType.ABOUT || type == MenuIconType.TEST) pulse else 1f
+        scaleY = if (type == MenuIconType.ABOUT || type == MenuIconType.TEST) pulse else 1f
+    }) {
         val stroke = 2.2.dp.toPx()
         val center = Offset(size.width / 2f, size.height / 2f)
         when (type) {
-            MenuIconType.SUPPORT -> {
-                drawLine(color, Offset(size.width * .27f, size.height * .42f), Offset(size.width * .73f, size.height * .42f), stroke, StrokeCap.Round)
-                drawLine(color, Offset(size.width * .27f, size.height * .58f), Offset(size.width * .73f, size.height * .58f), stroke, StrokeCap.Round)
-                drawLine(color, Offset(size.width * .42f, size.height * .25f), Offset(size.width * .58f, size.height * .75f), stroke, StrokeCap.Round)
-            }
+            MenuIconType.SUPPORT -> Unit
             MenuIconType.ABOUT -> {
                 drawCircle(color, radius = size.minDimension * .38f, center = center, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
                 drawCircle(color, radius = stroke * .7f, center = Offset(center.x, size.height * .34f))
