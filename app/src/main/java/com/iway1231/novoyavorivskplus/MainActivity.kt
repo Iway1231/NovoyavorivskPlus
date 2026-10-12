@@ -60,6 +60,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
@@ -174,6 +175,7 @@ private fun formatCountdown(minutes: Int): String {
     }
 }
 private const val CACHE_REFRESH_MS = 10 * 60 * 1000L
+private const val LINKEDIN_URL = "https://www.linkedin.com/in/ivan-demian-tuchapets-633083158/?isSelfProfile=true"
 
 private fun cachedJson(preferences: android.content.SharedPreferences, key: String): JsonObject? =
     runCatching { preferences.getString(key, null)?.let { JsonParser.parseString(it).asJsonObject } }.getOrNull()
@@ -669,6 +671,7 @@ private fun MenuScreen(
     onRefresh: () -> Unit
 ) {
     BackHandler(onBack = onBack)
+    val context = LocalContext.current
     Column(Modifier.fillMaxSize()) {
         Row(
             Modifier.fillMaxWidth().statusBarsPadding().padding(start = 16.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
@@ -690,7 +693,15 @@ private fun MenuScreen(
             MenuActionCard("↻", "Оновити дані", MaterialTheme.colorScheme.onSurfaceVariant, onRefresh)
             Spacer(Modifier.height(4.dp))
             Text("Розробник", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Іван-Демян Тучапець", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                "Іван-Дем'ян Тучапець",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                textDecoration = TextDecoration.Underline,
+                modifier = Modifier.clickable {
+                    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(LINKEDIN_URL))) }
+                }
+            )
         }
     }
 }
