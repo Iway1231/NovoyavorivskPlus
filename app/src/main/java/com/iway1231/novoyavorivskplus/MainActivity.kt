@@ -71,7 +71,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
@@ -781,8 +783,10 @@ private fun MenuIcon(type: MenuIconType, color: Color, darkTheme: Boolean) {
                 scaleY = pulse
             },
             color = color,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold
+            fontSize = 24.sp,
+            lineHeight = 28.sp,
+            textAlign = TextAlign.Center,
+            fontWeight = FontWeight.Medium
         )
         return
     }
