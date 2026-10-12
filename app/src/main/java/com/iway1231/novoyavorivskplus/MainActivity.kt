@@ -776,18 +776,22 @@ private fun MenuIcon(type: MenuIconType, color: Color, darkTheme: Boolean) {
     )
     val surfaceColor = MaterialTheme.colorScheme.surface
     if (type == MenuIconType.SUPPORT) {
-        Text(
-            "₴",
+        Box(
             modifier = Modifier.size(28.dp).graphicsLayer {
                 scaleX = pulse
                 scaleY = pulse
-            },
-            color = color,
-            fontSize = 24.sp,
-            lineHeight = 28.sp,
-            textAlign = TextAlign.Center,
-            fontWeight = FontWeight.Medium
-        )
+            }.background(color, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                "₴",
+                color = MaterialTheme.colorScheme.surface,
+                fontSize = 19.sp,
+                lineHeight = 22.sp,
+                textAlign = TextAlign.Center,
+                fontWeight = FontWeight.Bold
+            )
+        }
         return
     }
     Canvas(Modifier.size(28.dp).graphicsLayer {
