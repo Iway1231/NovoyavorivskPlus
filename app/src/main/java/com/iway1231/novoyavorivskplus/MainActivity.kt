@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -341,7 +342,7 @@ private fun HomeScreen(darkTheme: Boolean, onToggleTheme: () -> Unit) {
             return
         }
 
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().navigationBarsPadding()) {
         Row(
             Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -684,7 +685,7 @@ private fun MenuScreen(
 ) {
     BackHandler(onBack = onBack)
     val context = LocalContext.current
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().navigationBarsPadding()) {
         Row(
             Modifier.fillMaxWidth().statusBarsPadding().padding(start = 16.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -751,7 +752,12 @@ private fun MenuActionCard(
             MenuIcon(icon, iconColor, darkTheme)
         }
         Spacer(Modifier.width(16.dp))
-        Text(title, style = MaterialTheme.typography.titleMedium, color = if (icon == MenuIconType.SUPPORT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+        Text(
+            title,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.titleMedium,
+            color = if (icon == MenuIconType.SUPPORT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
