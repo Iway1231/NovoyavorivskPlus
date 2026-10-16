@@ -63,7 +63,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -1306,25 +1305,6 @@ private fun ServiceCard(section: JsonObject, darkTheme: Boolean) {
     }
 }
 
-@Composable
-private fun CrossedBoltIcon(color: Color) {
-    Canvas(Modifier.size(36.dp)) {
-        val w = 36f
-        val h = 36f
-        val bolt = Path().apply {
-            moveTo(w * 0.60f, h * 0.04f)
-            lineTo(w * 0.25f, h * 0.52f)
-            lineTo(w * 0.48f, h * 0.52f)
-            lineTo(w * 0.34f, h * 0.96f)
-            lineTo(w * 0.78f, h * 0.40f)
-            lineTo(w * 0.55f, h * 0.40f)
-            close()
-        }
-        drawPath(bolt, color)
-        drawLine(color, Offset(w * 0.12f, h * 0.12f), Offset(w * 0.88f, h * 0.88f), strokeWidth = w * 0.09f, cap = StrokeCap.Round)
-    }
-}
-
 private data class SchedulePeriod(
     val startMinutes: Int,
     val endMinutes: Int,
@@ -1412,10 +1392,6 @@ private fun WeeklySchedule(section: JsonObject, updatedAt: Long? = null) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (period.isOutage) {
-                CrossedBoltIcon(MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.width(12.dp))
-            }
             Column(Modifier.weight(1f)) {
                 Text(
                     if (period.isOutage) "Відключення світла" else "Світло має бути",
@@ -1452,7 +1428,10 @@ private fun intervalMinute(value: String?): Int? {
     return intervalMinuteValue(value)
 }
 
-private fun formatMinute(value: Int): String = "%02d:%02d".format(Locale.ROOT, value / 60, value % 60)
+private fun formatMinute(value: Int): String {
+    if (value >= 1440) return "23:59"
+    return "%02d:%02d".format(Locale.ROOT, value / 60, value % 60)
+}
 
 private fun outageDuration(startMinutes: Int, endMinutes: Int): String? {
     val duration = (endMinutes - startMinutes).coerceAtLeast(0)
