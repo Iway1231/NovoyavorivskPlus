@@ -75,6 +75,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
@@ -1142,23 +1143,46 @@ private fun addressSpecificElectricity(
     }
 
     val matched = findAddressOutages(status, selectedAddress, selectedGroup)
+    val date = status.get("date")?.takeUnless { it.isJsonNull }?.asString
+    val apiActualStatus = listOf("actual_status", "current_status", "power_status", "status")
+        .asSequence()
+        .mapNotNull { key -> status.get(key)?.takeUnless { it.isJsonNull }?.asString }
+        .firstOrNull { it.equals("ON", ignoreCase = true) || it.equals("OFF", ignoreCase = true) }
+    val state = evaluateElectricityState(date, matched, LocalDateTime.now(), apiActualStatus)
+
+    // Keep all matched intervals for the schedule. Only the current interval
+    // may determine the card's current status.
+    val intervals = JsonArray().apply { matched.forEach { add(it.deepCopy()) } }
     if (matched.isEmpty()) {
         result.addProperty("status", "ON")
         result.addProperty("has_outage", false)
         result.addProperty("title", "Світло має бути")
         result.addProperty("subtitle", "Для вибраної адреси планового відключення не знайдено")
         result.add("date", com.google.gson.JsonNull.INSTANCE)
-        result.add("intervals", com.google.gson.JsonArray())
+        result.add("intervals", intervals)
         result.add("outages", com.google.gson.JsonArray())
         result.add("details", com.google.gson.JsonArray())
-    } else {
-        val intervals = com.google.gson.JsonArray()
-        matched.forEach { intervals.add(it.deepCopy()) }
-        val date = status.get("date")?.takeUnless { it.isJsonNull }?.asString
-        result.addProperty("status", "OFF")
-        result.addProperty("has_outage", true)
-        result.addProperty("title", status.get("message")?.takeUnless { it.isJsonNull }?.asString ?: "Є планове відключення")
-        result.addProperty("subtitle", "Для вибраної адреси знайдено планове відключення")
+    } else when (state) {
+        ElectricityState.OFF -> {
+            result.addProperty("status", "OFF")
+            result.addProperty("has_outage", true)
+            result.addProperty("title", status.get("message")?.takeUnless { it.isJsonNull }?.asString ?: "Є планове відключення")
+            result.addProperty("subtitle", "Для вибраної адреси зараз триває відключення")
+        }
+        ElectricityState.ON -> {
+            result.addProperty("status", "ON")
+            result.addProperty("has_outage", false)
+            result.addProperty("title", "Світло має бути")
+            result.addProperty("subtitle", "Планове відключення зараз не триває")
+        }
+        ElectricityState.UNKNOWN -> {
+            result.addProperty("status", "UNKNOWN")
+            result.addProperty("has_outage", false)
+            result.addProperty("title", "Поточний стан не підтверджено")
+            result.addProperty("subtitle", "Плановий інтервал не є підтвердженням фактичного стану")
+        }
+    }
+    if (matched.isNotEmpty()) {
         if (date.isNullOrBlank()) result.add("date", com.google.gson.JsonNull.INSTANCE) else result.addProperty("date", date)
         result.add("intervals", intervals)
         result.add("outages", com.google.gson.JsonArray())
@@ -1425,13 +1449,7 @@ private fun formatUpdatedAt(timestamp: Long): String {
 }
 
 private fun intervalMinute(value: String?): Int? {
-    if (value.isNullOrBlank()) return null
-    val parts = value.split(":")
-    if (parts.size != 2) return null
-    val hours = parts[0].toIntOrNull() ?: return null
-    val minutes = parts[1].toIntOrNull() ?: return null
-    if (hours !in 0..24 || minutes !in 0..59 || (hours == 24 && minutes != 0)) return null
-    return hours * 60 + minutes
+    return intervalMinuteValue(value)
 }
 
 private fun formatMinute(value: Int): String = "%02d:%02d".format(Locale.ROOT, value / 60, value % 60)
