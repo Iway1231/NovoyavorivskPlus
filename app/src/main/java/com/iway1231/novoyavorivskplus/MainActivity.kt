@@ -180,21 +180,24 @@ private fun scheduleSummary(section: JsonObject?, now: LocalDateTime = LocalDate
     return "Відключень до кінця доби немає"
 }
 
-private fun hasCurrentDayScheduleWithoutOutages(section: JsonObject, today: LocalDate = LocalDate.now()): Boolean {
+private fun hasCurrentDayScheduleWithoutOutages(
+    section: JsonObject,
+    status: JsonObject?,
+    selectedGroup: String,
+    today: LocalDate = LocalDate.now()
+): Boolean {
     val date = section.get("date")?.takeUnless { it.isJsonNull }?.asString
         ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
         ?: return false
     if (date != today) return false
     if (section.get("source_available")?.takeUnless { it.isJsonNull }?.asBoolean == false) return false
-    val intervals = section.get("intervals")?.takeIf { it.isJsonArray }?.asJsonArray ?: return false
-    return intervals.none { element ->
-        if (!element.isJsonObject) return@none false
-        val item = element.asJsonObject
-        val status = item.get("status")?.takeUnless { it.isJsonNull }?.asString
-        val start = intervalMinute(item.get("from_time")?.takeUnless { it.isJsonNull }?.asString)
-        val end = intervalMinute(item.get("to_time")?.takeUnless { it.isJsonNull }?.asString)
-        !status.equals("ON", ignoreCase = true) && start != null && end != null && end > start
-    }
+    val groupData = status?.get("groups")?.takeIf { it.isJsonObject }?.asJsonObject
+        ?.get(selectedGroup.removePrefix("loe:"))?.takeIf { it.isJsonObject }?.asJsonObject
+    val hasGroupScheduleSource = status?.get("type")?.takeUnless { it.isJsonNull }?.asString == "GROUP_SCHEDULE" &&
+        groupData?.has("outages") == true
+    val hasScheduleSource = section.has("intervals") || section.has("outages") || hasGroupScheduleSource
+    if (!hasScheduleSource) return false
+    return plannedIntervalsForDisplay(section, status, selectedGroup).isEmpty()
 }
 
 private fun formatCountdown(minutes: Int): String {
@@ -1166,13 +1169,15 @@ private fun addressSpecificElectricity(
     val date = status.get("date")?.takeUnless { it.isJsonNull }?.asString
     val state = evaluateElectricityState()
 
-    // Keep all matched intervals for the schedule. Only the current interval
-    // may determine the card's current status.
-    val intervals = JsonArray().apply { matched.forEach { add(it.deepCopy()) } }
-    if (matched.isEmpty()) {
+    // Keep planned intervals separate from the factual state. GROUP_SCHEDULE
+    // responses expose compact ranges in `outages`, while mobile/home may use
+    // the same field even when `intervals` is empty.
+    val plannedIntervals = if (matched.isNotEmpty()) matched else plannedIntervalsForDisplay(groupSection, status, selectedGroup)
+    val intervals = JsonArray().apply { plannedIntervals.forEach { add(it.deepCopy()) } }
+    if (plannedIntervals.isEmpty()) {
         result.addProperty("status", state.name)
         result.add("has_outage", com.google.gson.JsonNull.INSTANCE)
-        val noPlannedOutagesToday = hasCurrentDayScheduleWithoutOutages(groupSection)
+        val noPlannedOutagesToday = hasCurrentDayScheduleWithoutOutages(groupSection, status, selectedGroup)
         result.addProperty("title", if (noPlannedOutagesToday) "За графіком відключень не заплановано до кінця доби" else "Поточний стан не підтверджено")
         result.addProperty("subtitle", if (noPlannedOutagesToday) "Це повідомлення стосується лише планового графіка" else "API не повернув фактичний стан електропостачання")
         result.add("date", groupSection.get("date")?.deepCopy() ?: com.google.gson.JsonNull.INSTANCE)
@@ -1185,13 +1190,33 @@ private fun addressSpecificElectricity(
         result.addProperty("title", "Поточний стан не підтверджено")
         result.addProperty("subtitle", "Плановий інтервал не є підтвердженням фактичного стану")
     }
-    if (matched.isNotEmpty()) {
+    if (plannedIntervals.isNotEmpty()) {
         if (date.isNullOrBlank()) result.add("date", com.google.gson.JsonNull.INSTANCE) else result.addProperty("date", date)
         result.add("intervals", intervals)
         result.add("outages", com.google.gson.JsonArray())
         result.add("details", com.google.gson.JsonArray())
     }
     return result
+}
+
+private fun plannedIntervalsForDisplay(
+    section: JsonObject,
+    status: JsonObject?,
+    selectedGroup: String
+): List<JsonObject> {
+    val structured = section.get("intervals")?.takeIf { it.isJsonArray }?.asJsonArray?.mapNotNull { element ->
+        if (!element.isJsonObject) return@mapNotNull null
+        val item = element.asJsonObject
+        val start = intervalMinute(item.get("from_time")?.takeUnless { it.isJsonNull }?.asString)
+        val end = intervalMinute(item.get("to_time")?.takeUnless { it.isJsonNull }?.asString)
+        if (start == null || end == null || end <= start) null else item
+    }.orEmpty()
+    if (structured.isNotEmpty()) return structured
+
+    val sectionOutages = plannedIntervalsFromOutages(outageStrings(section.get("outages")))
+    if (sectionOutages.isNotEmpty()) return sectionOutages
+
+    return plannedIntervalsFromOutages(groupScheduleOutages(status, selectedGroup))
 }
 
 private fun findAddressOutages(status: JsonObject?, selectedAddress: String, selectedGroup: String): List<JsonObject> {
