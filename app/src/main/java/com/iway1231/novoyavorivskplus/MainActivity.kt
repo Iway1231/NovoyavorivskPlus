@@ -153,7 +153,9 @@ private fun scheduleSummary(section: JsonObject?, now: LocalDateTime = LocalDate
     if (section == null) return ""
     val date = section.get("date")?.takeUnless { it.isJsonNull }?.asString?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
         ?: return "Графік ще не опубліковано"
-    val intervals = section.get("intervals")?.takeIf { it.isJsonArray }?.asJsonArray?.mapNotNull { element ->
+    val rawIntervals = section.get("intervals")?.takeIf { it.isJsonArray }?.asJsonArray
+        ?: return "Немає актуального графіка"
+    val intervals = rawIntervals.mapNotNull { element ->
         if (!element.isJsonObject) return@mapNotNull null
         val item = element.asJsonObject
         val start = intervalMinute(item.get("from_time")?.takeUnless { it.isJsonNull }?.asString) ?: return@mapNotNull null
@@ -161,20 +163,38 @@ private fun scheduleSummary(section: JsonObject?, now: LocalDateTime = LocalDate
         val status = item.get("status")?.takeUnless { it.isJsonNull }?.asString
         if (status == "ON" || end <= start) null else start to end
     }?.sortedBy { it.first }.orEmpty()
-    if (intervals.isEmpty()) return "Відключень сьогодні немає"
+    if (date == now.toLocalDate() && intervals.isEmpty()) return "За графіком відключень не заплановано до кінця доби"
     if (date.isAfter(now.toLocalDate())) {
+        if (intervals.isEmpty()) return "Графік на цей день ще не опубліковано"
         val next = intervals.first()
         val nextDateTime = date.atStartOfDay().plusMinutes(next.first.toLong())
         val minutesUntil = Duration.between(now, nextDateTime).toMinutes().toInt()
         return "До відключення: ${formatCountdown(minutesUntil)}"
     }
-    if (date.isBefore(now.toLocalDate())) return "Графік за цю дату вже минув"
+    if (date.isBefore(now.toLocalDate())) return "Немає актуального графіка"
     val minuteNow = now.hour * 60 + now.minute
     val current = intervals.firstOrNull { minuteNow in it.first until it.second }
     val next = current ?: intervals.firstOrNull { it.first > minuteNow }
     if (current != null) return "До ввімкнення: ${formatCountdown(current.second - minuteNow)}"
     if (next != null) return "До відключення: ${formatCountdown(next.first - minuteNow)}"
-    return "Відключень до кінця дня немає"
+    return "Відключень до кінця доби немає"
+}
+
+private fun hasCurrentDayScheduleWithoutOutages(section: JsonObject, today: LocalDate = LocalDate.now()): Boolean {
+    val date = section.get("date")?.takeUnless { it.isJsonNull }?.asString
+        ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+        ?: return false
+    if (date != today) return false
+    if (section.get("source_available")?.takeUnless { it.isJsonNull }?.asBoolean == false) return false
+    val intervals = section.get("intervals")?.takeIf { it.isJsonArray }?.asJsonArray ?: return false
+    return intervals.none { element ->
+        if (!element.isJsonObject) return@none false
+        val item = element.asJsonObject
+        val status = item.get("status")?.takeUnless { it.isJsonNull }?.asString
+        val start = intervalMinute(item.get("from_time")?.takeUnless { it.isJsonNull }?.asString)
+        val end = intervalMinute(item.get("to_time")?.takeUnless { it.isJsonNull }?.asString)
+        !status.equals("ON", ignoreCase = true) && start != null && end != null && end > start
+    }
 }
 
 private fun formatCountdown(minutes: Int): String {
@@ -1132,6 +1152,7 @@ private fun addressSpecificElectricity(
     val result = groupSection.deepCopy()
     if (status == null) {
         result.addProperty("status", "UNKNOWN")
+        result.add("has_outage", com.google.gson.JsonNull.INSTANCE)
         result.addProperty("title", "Не вдалося перевірити відключення")
         result.addProperty("subtitle", "Адресні дані тимчасово недоступні")
         result.add("date", com.google.gson.JsonNull.INSTANCE)
@@ -1143,43 +1164,26 @@ private fun addressSpecificElectricity(
 
     val matched = findAddressOutages(status, selectedAddress, selectedGroup)
     val date = status.get("date")?.takeUnless { it.isJsonNull }?.asString
-    val apiActualStatus = listOf("actual_status", "current_status", "power_status", "status")
-        .asSequence()
-        .mapNotNull { key -> status.get(key)?.takeUnless { it.isJsonNull }?.asString }
-        .firstOrNull { it.equals("ON", ignoreCase = true) || it.equals("OFF", ignoreCase = true) }
-    val state = evaluateElectricityState(date, matched, LocalDateTime.now(), apiActualStatus)
+    val state = evaluateElectricityState()
 
     // Keep all matched intervals for the schedule. Only the current interval
     // may determine the card's current status.
     val intervals = JsonArray().apply { matched.forEach { add(it.deepCopy()) } }
     if (matched.isEmpty()) {
-        result.addProperty("status", "ON")
-        result.addProperty("has_outage", false)
-        result.addProperty("title", "Світло має бути")
-        result.addProperty("subtitle", "Для вибраної адреси планового відключення не знайдено")
-        result.add("date", com.google.gson.JsonNull.INSTANCE)
-        result.add("intervals", intervals)
+        result.addProperty("status", state.name)
+        result.add("has_outage", com.google.gson.JsonNull.INSTANCE)
+        val noPlannedOutagesToday = hasCurrentDayScheduleWithoutOutages(groupSection)
+        result.addProperty("title", if (noPlannedOutagesToday) "За графіком відключень не заплановано до кінця доби" else "Поточний стан не підтверджено")
+        result.addProperty("subtitle", if (noPlannedOutagesToday) "Це повідомлення стосується лише планового графіка" else "API не повернув фактичний стан електропостачання")
+        result.add("date", groupSection.get("date")?.deepCopy() ?: com.google.gson.JsonNull.INSTANCE)
+        result.add("intervals", groupSection.get("intervals")?.deepCopy() ?: intervals)
         result.add("outages", com.google.gson.JsonArray())
         result.add("details", com.google.gson.JsonArray())
-    } else when (state) {
-        ElectricityState.OFF -> {
-            result.addProperty("status", "OFF")
-            result.addProperty("has_outage", true)
-            result.addProperty("title", status.get("message")?.takeUnless { it.isJsonNull }?.asString ?: "Є планове відключення")
-            result.addProperty("subtitle", "Для вибраної адреси зараз триває відключення")
-        }
-        ElectricityState.ON -> {
-            result.addProperty("status", "ON")
-            result.addProperty("has_outage", false)
-            result.addProperty("title", "Світло має бути")
-            result.addProperty("subtitle", "Планове відключення зараз не триває")
-        }
-        ElectricityState.UNKNOWN -> {
-            result.addProperty("status", "UNKNOWN")
-            result.addProperty("has_outage", false)
-            result.addProperty("title", "Поточний стан не підтверджено")
-            result.addProperty("subtitle", "Плановий інтервал не є підтвердженням фактичного стану")
-        }
+    } else {
+        result.addProperty("status", state.name)
+        result.add("has_outage", com.google.gson.JsonNull.INSTANCE)
+        result.addProperty("title", "Поточний стан не підтверджено")
+        result.addProperty("subtitle", "Плановий інтервал не є підтвердженням фактичного стану")
     }
     if (matched.isNotEmpty()) {
         if (date.isNullOrBlank()) result.add("date", com.google.gson.JsonNull.INSTANCE) else result.addProperty("date", date)
@@ -1347,10 +1351,13 @@ private fun WeeklySchedule(section: JsonObject, updatedAt: Long? = null) {
     }
 
 
-    if (scheduleDate == null || selectedDate != scheduleDate) {
+    if (scheduleDate == null || scheduleDate.isBefore(LocalDate.now())) {
+        Text("Немає актуального графіка", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        return
+    }
+    if (selectedDate != scheduleDate) {
         Text(
-            if (scheduleDate == null) "Для цієї адреси відключень не знайдено"
-            else "Графік на цей день ще не опубліковано",
+            "Графік на цей день ще не опубліковано",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -1369,7 +1376,12 @@ private fun WeeklySchedule(section: JsonObject, updatedAt: Long? = null) {
     }.orEmpty().sortedBy { it.startMinutes }
 
     if (outages.isEmpty()) {
-        Text("На цей день відключень не заплановано", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            if (selectedDate == LocalDate.now()) "За графіком відключень не заплановано до кінця доби"
+            else "На цей день відключень не заплановано",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         return
     }
 
